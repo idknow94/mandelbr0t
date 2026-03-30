@@ -10,10 +10,11 @@ use winit::{
     window::{Window, WindowAttributes},
 };
 
+const ASPECT_RATIO: f32 = 1.0 / 1.0;
 const LOGICAL_WIDTH: u32 = 500;
-const LOGICAL_HEIGHT: u32 = 400;
-const WIDTH: u32 = 2000;
-const HEIGHT: u32 = 1600;
+const LOGICAL_HEIGHT: u32 = (LOGICAL_WIDTH as f32 * ASPECT_RATIO) as u32;
+const WIDTH: u32 = 1600;
+const HEIGHT: u32 = (WIDTH as f32 * ASPECT_RATIO) as u32;
 const FPS: u64 = 60;
 const FRAME_DURATION: Duration = Duration::from_micros(1_000_000 / FPS);
 
@@ -40,7 +41,7 @@ impl Camera {
     }
 
     fn current_depth(&self) -> u32 {
-        let base_depth = 100.0;
+        let base_depth = 150.0;
         let sensitivity = 40.0;
         (base_depth + sensitivity * self.zoom.sqrt()) as u32
     }
@@ -66,19 +67,23 @@ impl Mandelbrot {
 
         let r = (u8::MAX as f32 * (t * 0.5).sin().abs()) as u8;
         let g = (u8::MAX as f32 * (t * 0.2).sin().powi(2)) as u8;
-        let b = (u8::MAX as f32 * (t * 0.1).sin().powi(4)) as u8;
+        let b = (u8::MAX as f32 * (t * 0.4).sin().powi(4)) as u8;
 
         [r, g, b, 255]
     }
 
     fn set_resolution(&mut self, factor: u32) {
-        let new_w = LOGICAL_WIDTH / factor;
-        let new_h = LOGICAL_HEIGHT / factor;
-        if self.lwidth != new_w {
-            self.lwidth = new_w;
-            self.lheight = new_h;
-            if let Some(pixels) = &mut self.pixels {
-                let _ = pixels.resize_buffer(new_w, new_h);
+        if let Some(window) = self.window {
+            let size = window.inner_size();
+            let new_w = (size.width / 4) / factor;
+            let new_h = (size.height / 4) / factor;
+
+            if self.lwidth != new_w || self.lheight != new_h {
+                self.lwidth = new_w;
+                self.lheight = new_h;
+                if let Some(pixels) = &mut self.pixels {
+                    let _ = pixels.resize_buffer(new_w, new_h);
+                }
             }
         }
     }
@@ -217,14 +222,23 @@ impl ApplicationHandler for Mandelbrot {
                     }
                 }
             }
+            WindowEvent::Resized(PhysicalSize { width, height }) => {
+                self.lwidth = width / 4;
+                self.lheight = height / 4;
+                if let (Some(pixels), Some(window)) = (&mut self.pixels, &self.window) {
+                    let _ = pixels.resize_buffer(self.lwidth, self.lheight);
+
+                    let _ = pixels.resize_surface(width, height);
+
+                    window.request_redraw();
+                }
+            }
             _ => {}
         }
     }
 
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         let now = Instant::now();
-
-        // Snap back to high-res after 100ms of inactivity
         if now.duration_since(self.last_input_time) > Duration::from_millis(100) {
             if self.lwidth != LOGICAL_WIDTH {
                 self.set_resolution(1);

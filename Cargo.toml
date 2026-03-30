@@ -7,3 +7,10 @@ edition = "2024"
 pixels = "0.16.0"
 rayon = "1.11.0"
 winit = "0.30.13"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
